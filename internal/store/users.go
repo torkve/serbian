@@ -26,7 +26,7 @@ type User struct {
 // don't have to reach for hardcoded literals.
 const (
 	DifficultyFloor   = 1
-	DifficultyCeiling = 6
+	DifficultyCeiling = 8
 )
 
 var ErrUserNotFound = errors.New("user not found")

@@ -9,6 +9,8 @@ const BAND_LABELS = {
   4: 'C1-mid',
   5: 'C1-high',
   6: 'C1+ литерарно',
+  7: 'C2 академски/књижевни',
+  8: 'C2+ мајсторски',
 };
 
 function bandOption(level, selected) {
@@ -19,7 +21,7 @@ function bandOption(level, selected) {
 
 function bandSelect(name, value, onChange) {
   const opts = [];
-  for (let i = 1; i <= 6; i++) opts.push(bandOption(i, value));
+  for (let i = 1; i <= 8; i++) opts.push(bandOption(i, value));
   return h('select', {
     name,
     onChange: (e) => onChange(parseInt(e.target.value, 10)),
@@ -41,7 +43,7 @@ export function settings({ prefs, draft, saving, error, onChangeMin, onChangeMax
         bandSelect('difficulty_max', draft.difficulty_max, onChangeMax),
       ),
       h('p', { class: 'hint' },
-        'Сесије ће садржати само задатке у изабраном опсегу. Подразумевано 3—6.'),
+        'Сесије ће садржати само задатке у изабраном опсегу. Подразумевано 3—6; нивои 7 и 8 су C2 (за изазов).'),
       invalid
         ? h('p', { class: 'error' }, 'Доња граница не сме бити већа од горње.')
         : null,

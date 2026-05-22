@@ -36,7 +36,7 @@ func main() {
 	)
 	flag.StringVar(&kind, "kind", "", "task kind (cloze|conjugation|case|aspect|tr_ru_sr|tr_sr_ru|vocab|speak)")
 	flag.StringVar(&topic, "topic", "", "topic tag, e.g. cases.instrumental")
-	flag.IntVar(&difficulty, "difficulty", 3, "difficulty 1-6 (1≈B2-low, 3≈C1-low, 5=C1-high, 6=C1+ литерарно)")
+	flag.IntVar(&difficulty, "difficulty", 3, "difficulty 1-8 (1≈B2-low, 3≈C1-low, 5=C1-high, 6=C1+ литерарно, 7=C2 академски/књижевни, 8=C2+ мајсторски/архаични)")
 	flag.IntVar(&count, "count", 10, "number of tasks to generate")
 	flag.StringVar(&model, "model", "", "anthropic model override (default: from config)")
 	flag.BoolVar(&dryRun, "dry-run", false, "print generated tasks to stdout instead of inserting")
@@ -62,8 +62,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown kind %q; allowed: cloze, conjugation, case, aspect, tr_ru_sr, tr_sr_ru, vocab, speak\n", kind)
 		os.Exit(2)
 	}
-	if difficulty < 1 || difficulty > 6 {
-		fmt.Fprintln(os.Stderr, "--difficulty must be 1..6")
+	if difficulty < 1 || difficulty > 8 {
+		fmt.Fprintln(os.Stderr, "--difficulty must be 1..8")
 		os.Exit(2)
 	}
 	if count < 1 || count > 50 {
@@ -317,8 +317,8 @@ func runImport(ctx context.Context, path, configPath string, dryRun bool) {
 	if !allowedKinds[batch.Kind] {
 		log.Fatalf("import: unknown kind %q (allowed: cloze, conjugation, case, aspect, tr_ru_sr, tr_sr_ru, vocab, speak)", batch.Kind)
 	}
-	if batch.Difficulty < 1 || batch.Difficulty > 6 {
-		log.Fatalf("import: difficulty must be 1..6 (got %d)", batch.Difficulty)
+	if batch.Difficulty < 1 || batch.Difficulty > 8 {
+		log.Fatalf("import: difficulty must be 1..8 (got %d)", batch.Difficulty)
 	}
 	if len(batch.Tasks) == 0 {
 		log.Fatalf("import: no tasks in batch")
