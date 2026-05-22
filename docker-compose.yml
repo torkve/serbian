@@ -1,0 +1,51 @@
+# Two-service stack: the Go PWA + the whisper.cpp STT sidecar.
+#
+# - The app talks to whisper at http://whisper:8080/inference over the
+#   internal "serbian" bridge network; whisper is not published to the host.
+# - ./data is bind-mounted so the same DB/config/backups used by `make run`
+#   work seamlessly with the container.
+# - ./models is bind-mounted read-only into the whisper container so the
+#   ~1.5 GB ggml-medium.bin only lives on the host filesystem.
+#
+# Default behaviour is CPU-only. To use the CUDA build of whisper, layer the
+# `docker-compose.cuda.yml` overlay on top (see the Makefile docker-* targets).
+
+services:
+  whisper:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.whisper
+    image: serbian/whisper:cpu
+    restart: unless-stopped
+    volumes:
+      - ./models:/models:ro
+    networks:
+      - serbian
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+    image: serbian/app:latest
+    # Match host owner of ./data (bind-mounted below). Distroless has no
+    # /etc/passwd but Docker happily applies a numeric UID/GID.
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped
+    depends_on:
+      whisper:
+        condition: service_started
+    environment:
+      WHISPER_URL: http://whisper:8080/inference
+      SERBIAN_ADDR: ":8089"
+      # Pass through optional Anthropic API key from the host shell / .env.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "${SERBIAN_PORT:-8089}:8089"
+    volumes:
+      - ./data:/app/data
+    networks:
+      - serbian
+
+networks:
+  serbian:
+    driver: bridge

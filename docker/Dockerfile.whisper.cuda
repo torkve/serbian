@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1.6
+#
+# CUDA build of whisper.cpp's HTTP server. Requires NVIDIA Container Toolkit
+# on the host. Use via:
+#   make docker-build GPU=1
+#   make docker-up GPU=1
+
+ARG WHISPER_REF=v1.7.2
+
+# ---- builder ---------------------------------------------------------------
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS builder
+ARG WHISPER_REF
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+RUN git clone --depth 1 --branch "${WHISPER_REF}" \
+        https://github.com/ggerganov/whisper.cpp.git
+
+WORKDIR /src/whisper.cpp
+RUN cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_NATIVE=OFF \
+        -DGGML_CUDA=ON \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DWHISPER_BUILD_SERVER=ON \
+        -DWHISPER_BUILD_TESTS=OFF \
+        -DWHISPER_BUILD_EXAMPLES=ON \
+    && cmake --build build --config Release -j --target server
+
+RUN install -Dm755 build/bin/whisper-server /out/whisper-server \
+    || install -Dm755 build/bin/server /out/whisper-server
+
+# ---- runtime --------------------------------------------------------------
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 1000 whisper \
+    && useradd --system --uid 1000 --gid whisper --no-create-home whisper
+
+COPY --from=builder /out/whisper-server /usr/local/bin/whisper-server
+
+USER whisper:whisper
+EXPOSE 8080
+VOLUME ["/models"]
+
+ENTRYPOINT ["whisper-server"]
+CMD ["-m", "/models/ggml-medium.bin", \
+     "--host", "0.0.0.0", \
+     "--port", "8080", \
+     "--language", "sr", \
+     "--convert"]

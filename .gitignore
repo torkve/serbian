@@ -1,0 +1,9 @@
+/data/
+/bin/
+/models/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.log
+.env

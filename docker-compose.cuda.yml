@@ -1,0 +1,18 @@
+# Overlay: swap the CPU whisper image for the CUDA build. Compose merges this
+# on top of docker-compose.yml when both -f flags are supplied.
+#
+# Requires NVIDIA Container Toolkit (nvidia-container-runtime) on the host.
+
+services:
+  whisper:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.whisper.cuda
+    image: serbian/whisper:cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

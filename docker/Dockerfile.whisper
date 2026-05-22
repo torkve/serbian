@@ -1,0 +1,62 @@
+# syntax=docker/dockerfile:1.6
+#
+# CPU build of whisper.cpp's bundled HTTP server. The Go app posts
+# multipart/form-data audio to /inference; whisper.cpp returns JSON.
+#
+# Model files are NOT baked into the image — they live in a host-mounted
+# /models volume so users can swap sizes without rebuilding.
+
+ARG WHISPER_REF=v1.7.2
+
+# ---- builder ---------------------------------------------------------------
+FROM debian:bookworm-slim AS builder
+ARG WHISPER_REF
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+RUN git clone --depth 1 --branch "${WHISPER_REF}" \
+        https://github.com/ggerganov/whisper.cpp.git
+
+WORKDIR /src/whisper.cpp
+# GGML_NATIVE=OFF makes the binary portable across CPUs (no -march=native).
+# Build the server example along with the static library.
+RUN cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_NATIVE=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DWHISPER_BUILD_SERVER=ON \
+        -DWHISPER_BUILD_TESTS=OFF \
+        -DWHISPER_BUILD_EXAMPLES=ON \
+    && cmake --build build --config Release -j --target server
+
+# whisper.cpp puts the server binary under build/bin/whisper-server.
+# Some refs name it just "server" — symlink for forward compatibility.
+RUN install -Dm755 build/bin/whisper-server /out/whisper-server \
+    || install -Dm755 build/bin/server /out/whisper-server
+
+# ---- runtime --------------------------------------------------------------
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 1000 whisper \
+    && useradd --system --uid 1000 --gid whisper --no-create-home whisper
+
+COPY --from=builder /out/whisper-server /usr/local/bin/whisper-server
+
+USER whisper:whisper
+EXPOSE 8080
+VOLUME ["/models"]
+
+# --convert lets whisper.cpp accept opus/webm/mp4 uploads from browsers.
+# Override the model with -e or via compose to switch sizes.
+ENTRYPOINT ["whisper-server"]
+CMD ["-m", "/models/ggml-medium.bin", \
+     "--host", "0.0.0.0", \
+     "--port", "8080", \
+     "--language", "sr", \
+     "--convert"]

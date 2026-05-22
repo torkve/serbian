@@ -1,0 +1,31 @@
+# Keep build context lean — anything not needed by `go build` adds latency.
+.git/
+.gitignore
+.claude/
+
+# Local state — must not leak into the image (the data/ dir is bind-mounted
+# at runtime instead).
+data/
+bin/
+models/
+
+# Stray local files.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.log
+.env
+
+# Docker assets themselves — they're consumed by the docker CLI, not by the
+# build context.
+docker/
+docker-compose*.yml
+.dockerignore
+
+# Editor / OS clutter.
+*.swp
+.DS_Store
+
+# Documentation isn't needed in the image.
+README.md

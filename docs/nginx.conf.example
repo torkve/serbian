@@ -1,0 +1,68 @@
+# Example nginx config for deploying the Serbian PWA behind TLS on a subpath.
+#
+# Assumes you already have a TLS-terminating nginx server listening on 443
+# for your domain (cert via Let's Encrypt or whatever). Drop the location
+# blocks below into your existing `server { listen 443 ssl http2; ... }`
+# block, or take the whole `server {}` example as a starting point.
+#
+# Chosen subpath in this example: /serbian. Change every occurrence to your
+# preferred path. The app itself uses only relative URLs client-side, so it
+# works at any subpath as long as nginx:
+#   * strips the prefix on proxy_pass (trailing `/` on proxy_pass URL),
+#   * forwards X-Forwarded-Prefix so the app emits the right cookie Path
+#     and the right Location on its one redirect (/setup → /serbian/),
+#   * redirects bare `/serbian` to `/serbian/` so relative URLs from the
+#     loaded document resolve correctly.
+
+server {
+    listen 443 ssl http2;
+    server_name example.com;
+
+    # Your TLS config goes here.
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    # Audio uploads from the speaking task can be a few MB. Default
+    # client_max_body_size is 1m on most distros — bump it.
+    client_max_body_size 32m;
+
+    # The bare path needs a trailing slash so the browser uses /serbian/ as
+    # the document directory; otherwise relative URLs resolve against /.
+    location = /serbian {
+        return 301 /serbian/;
+    }
+
+    # Main proxy block. The trailing slash on proxy_pass strips the /serbian
+    # prefix before forwarding to the app, so the Go server sees requests at
+    # / (no code changes needed for routing).
+    location /serbian/ {
+        proxy_pass http://127.0.0.1:8089/;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        # CRITICAL: the app reads this to set the cookie Path and the auth
+        # redirect Location correctly. Without it, /setup would redirect to
+        # the bare origin root and the cookie would be Path=/.
+        proxy_set_header X-Forwarded-Prefix /serbian;
+
+        # Whisper transcription on CPU can take 10–20s for longer clips.
+        # The default 60s read timeout is usually enough; bump it if you
+        # see 504s on big speak uploads.
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+
+        # No WebSockets used by the app today; this is harmless future-proofing.
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+
+# If you also want the bare-domain root to redirect to the app:
+#
+#   location = / {
+#       return 301 /serbian/;
+#   }
