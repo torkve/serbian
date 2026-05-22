@@ -54,7 +54,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 			t.Stop()
 			return
 		case <-t.C:
-			s.fire(ctx)
+			s.fire(ctx, "scheduled")
 		}
 	}
 }
@@ -117,13 +117,14 @@ func (s *Scheduler) Configured() bool {
 }
 
 // Fire sends the standard reminder to every subscription. Exposed so the
-// /api/push/test endpoint can use the same path.
-func (s *Scheduler) Fire(ctx context.Context) error {
-	return s.fire(ctx)
+// /api/push/test endpoint can use the same path. The trigger label appears
+// in the fire-start / fire-done log lines so operators can tell scheduled
+// ticks apart from manual test invocations.
+func (s *Scheduler) Fire(ctx context.Context, trigger string) error {
+	return s.fire(ctx, trigger)
 }
 
-func (s *Scheduler) fire(ctx context.Context) error {
-	log.Println("push: firing reminder")
+func (s *Scheduler) fire(ctx context.Context, trigger string) error {
 	rows, err := s.db.QueryContext(ctx, `SELECT id, endpoint, p256dh, auth FROM push_subs`)
 	if err != nil {
 		return fmt.Errorf("query subs: %w", err)
@@ -143,21 +144,37 @@ func (s *Scheduler) fire(ctx context.Context) error {
 	}
 	rows.Close()
 
+	log.Printf("push: fire start trigger=%s subs=%d", trigger, len(subs))
+
 	n := Notification{Title: "Српски", Body: "Време је за кратку вежбу.", URL: "/?from=push"}
+	var okCount, goneCount, errCount int
 	for _, r := range subs {
 		status, err := s.sender.Send(ctx, r.Sub, n)
 		if err != nil {
-			log.Printf("push: send #%d: %v", r.ID, err)
+			log.Printf("push: send sub=#%d error=%v endpoint=%s", r.ID, err, r.Sub.Endpoint)
+			errCount++
 			s.bumpFailure(ctx, r.ID)
 			continue
 		}
-		if status == 410 || status == 404 {
-			log.Printf("push: subscription #%d gone (status %d)", r.ID, status)
+		switch {
+		case status == 410 || status == 404:
+			log.Printf("push: send sub=#%d status=%d gone endpoint=%s", r.ID, status, r.Sub.Endpoint)
+			goneCount++
 			s.bumpFailure(ctx, r.ID)
-			continue
+		case status >= 200 && status < 300:
+			log.Printf("push: send sub=#%d status=%d ok endpoint=%s", r.ID, status, r.Sub.Endpoint)
+			okCount++
+			s.markOK(ctx, r.ID)
+		default:
+			// 5xx from the push service, or anything else unexpected. Count
+			// as an error and bump the failure counter — a broken upstream
+			// should eventually retire a stale sub like a 410 would.
+			log.Printf("push: send sub=#%d status=%d unexpected endpoint=%s", r.ID, status, r.Sub.Endpoint)
+			errCount++
+			s.bumpFailure(ctx, r.ID)
 		}
-		s.markOK(ctx, r.ID)
 	}
+	log.Printf("push: fire done trigger=%s sent=%d gone=%d errors=%d", trigger, okCount, goneCount, errCount)
 	return nil
 }
 

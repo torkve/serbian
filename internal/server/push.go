@@ -79,7 +79,7 @@ func (s *Server) handlePushTest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "VAPID keys not configured — run ./bin/vapid and add them to data/config.json", http.StatusServiceUnavailable)
 		return
 	}
-	if err := s.pushScheduler.Fire(r.Context()); err != nil {
+	if err := s.pushScheduler.Fire(r.Context(), "test"); err != nil {
 		httpError(w, "fire test push", err)
 		return
 	}
