@@ -299,10 +299,10 @@ func abbreviate(s string, n int) string {
 
 // importBatch matches what the serbian-task-author subagent writes.
 type importBatch struct {
-	Kind       string               `json:"kind"`
-	Difficulty int                  `json:"difficulty"`
-	Topic      string               `json:"topic"`
-	Tasks      []llm.GeneratedTask  `json:"tasks"`
+	Kind       string              `json:"kind"`
+	Difficulty int                 `json:"difficulty"`
+	Topic      string              `json:"topic"`
+	Tasks      []llm.GeneratedTask `json:"tasks"`
 }
 
 func runImport(ctx context.Context, path, configPath string, dryRun bool) {

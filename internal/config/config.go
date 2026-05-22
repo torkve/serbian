@@ -10,14 +10,14 @@ import (
 )
 
 type Config struct {
-	Addr              string   `json:"addr"`
-	DBPath            string   `json:"db_path"`
-	AudioDir          string   `json:"audio_dir"`
-	AuthToken         string   `json:"auth_token"`
-	AnthropicAPIKey   string   `json:"anthropic_api_key,omitempty"`
-	AnthropicModel    string   `json:"anthropic_model,omitempty"`
-	WhisperURL        string   `json:"whisper_url"`
-	WhisperLanguage   string   `json:"whisper_language"`
+	Addr            string `json:"addr"`
+	DBPath          string `json:"db_path"`
+	AudioDir        string `json:"audio_dir"`
+	AuthToken       string `json:"auth_token"`
+	AnthropicAPIKey string `json:"anthropic_api_key,omitempty"`
+	AnthropicModel  string `json:"anthropic_model,omitempty"`
+	WhisperURL      string `json:"whisper_url"`
+	WhisperLanguage string `json:"whisper_language"`
 	// PublicURL is the externally-visible base URL (no trailing slash). Used
 	// only to print a useful setup link in the startup log when the app is
 	// deployed behind a reverse proxy. E.g. "https://example.com/serbian".

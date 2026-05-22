@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	cookieName    = "serbian_auth"
-	cookieMaxAge  = 60 * 60 * 24 * 365 * 5 // ~5 years
+	cookieName   = "serbian_auth"
+	cookieMaxAge = 60 * 60 * 24 * 365 * 5 // ~5 years
 )
 
 type Server struct {

@@ -28,14 +28,14 @@ func init() {
 
 func main() {
 	var (
-		addr        string
-		configPath  string
-		backupOnly  bool
-		backupDir   string
-		backupKeep  int
-		addUser     string
-		deleteUser  string
-		listUsers   bool
+		addr       string
+		configPath string
+		backupOnly bool
+		backupDir  string
+		backupKeep int
+		addUser    string
+		deleteUser string
+		listUsers  bool
 	)
 	flag.StringVar(&addr, "addr", "", "listen address (overrides config)")
 	flag.StringVar(&configPath, "config", "data/config.json", "config file path")
