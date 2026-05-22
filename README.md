@@ -193,6 +193,40 @@ docker compose run --rm --entrypoint /app/serbian app -delete-user alice
 
 (`--entrypoint /app/serbian` is needed because the image's default ENTRYPOINT bakes in `-config /app/data/config.json -backup-dir /app/data/backups`; this override drops those flags and the binary falls back to the same paths via its built-in defaults relative to `WORKDIR /app`.)
 
+### Importing pre-generated task batches inside the container
+
+The image also bundles `/app/pregen` — same binary as `bin/pregen`. To import a JSON batch produced by the `serbian-task-author` subagent (or any conforming file), stage it under `./data/` on the host so it's visible inside the container via the existing bind mount:
+
+```bash
+# Host side: copy or move the batch file under ./data/
+mkdir -p data/imports
+cp .local/d7-gen/cloze.json data/imports/
+
+# Container side: invoke pregen with the in-container path
+docker compose run --rm --entrypoint /app/pregen app \
+    -config /app/data/config.json \
+    -import /app/data/imports/cloze.json
+```
+
+For a whole directory, loop on the host shell:
+
+```bash
+for f in .local/d7-gen/*.json; do
+  cp "$f" data/imports/
+  docker compose run --rm --entrypoint /app/pregen app \
+      -config /app/data/config.json \
+      -import /app/data/imports/"$(basename "$f")"
+done
+```
+
+(`pregen -import` is idempotent on duplicates — re-running the same file is safe.) Generating new tasks via `pregen -kind …` also works from inside the container as long as `ANTHROPIC_API_KEY` is set in the host environment; compose already forwards it.
+
+For the common single-file case there is a convenience target that handles the copy + invocation in one step:
+
+```bash
+make docker-import FILE=.local/d7-gen/cloze.json
+```
+
 If you've enabled the local nginx overlay, add `-f docker-compose.nginx.yml` so the volumes resolve identically — though for a one-shot CLI you can equally drop the overlay:
 
 ```bash

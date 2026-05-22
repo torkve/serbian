@@ -21,7 +21,8 @@ endif
 
 .PHONY: all build run backup pregen vapid fmt vet test tidy clean \
         docker-build docker-up docker-down docker-restart docker-logs \
-        docker-ps docker-shell docker-clean whisper-model nginx-cert
+        docker-ps docker-shell docker-clean docker-import whisper-model \
+        nginx-cert
 
 all: build
 
@@ -120,6 +121,20 @@ docker-ps:
 # base if you need this often. Whisper's runtime image has /bin/sh.
 docker-shell:
 	$(COMPOSE) $(COMPOSE_FILES) exec whisper /bin/sh
+
+# One-shot task import inside the app container. Usage:
+#   make docker-import FILE=path/to/batch.json
+# The file is copied into ./data/imports/ first so the existing data bind
+# mount makes it visible inside the container.
+docker-import:
+	@if [ -z "$(FILE)" ]; then \
+		echo "usage: make docker-import FILE=path/to/batch.json"; exit 2; \
+	fi
+	@mkdir -p data/imports
+	@cp "$(FILE)" data/imports/
+	$(COMPOSE) $(COMPOSE_FILES) run --rm --entrypoint /app/pregen app \
+		-config /app/data/config.json \
+		-import /app/data/imports/$$(basename "$(FILE)")
 
 # Remove containers and locally-built images. Leaves ./data and ./models on
 # the host so nothing is lost.
