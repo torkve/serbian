@@ -1,17 +1,5 @@
 import { h } from '../lib/dom.js';
-
-// Band labels mirror the server-side calibration (1 = B2-low, 6 = C1+ литерарно).
-// Kept in sync by hand — there are only six entries and they change rarely.
-const BAND_LABELS = {
-  1: 'B2-low',
-  2: 'B2-high',
-  3: 'C1-low',
-  4: 'C1-mid',
-  5: 'C1-high',
-  6: 'C1+ литерарно',
-  7: 'C2 академски/књижевни',
-  8: 'C2+ мајсторски',
-};
+import { BAND_LABELS } from '../lib/bands.js';
 
 function bandOption(level, selected) {
   return h('option',

@@ -1,4 +1,5 @@
 import { h } from '../lib/dom.js';
+import { bandShort } from '../lib/bands.js';
 
 const labels = {
   cloze: 'Попуни празнину',
@@ -14,9 +15,14 @@ const labels = {
 export function session(ctx) {
   const { task, index, total, checked, lastResult, onCheck, onNext, onFinish, onAnswer } = ctx;
 
+  const diffPill = (typeof task.difficulty === 'number')
+    ? h('span', { class: 'diff-pill' }, bandShort(task.difficulty))
+    : null;
+
   const progress = h('div', { class: 'progress' },
     h('span', null, `${index + 1} / ${total}`),
     h('span', { class: 'kind-pill' }, labels[task.kind] || task.kind),
+    diffPill,
   );
 
   const promptEl = h('div', { class: 'prompt' }, task.prompt);

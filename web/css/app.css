@@ -90,6 +90,15 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 
   color: var(--muted);
   font-size: 0.9rem;
 }
+.diff-pill {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1em 0.55em;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-left: 0.4em;
+}
 .kind-pill {
   background: var(--card);
   border: 1px solid var(--border);
