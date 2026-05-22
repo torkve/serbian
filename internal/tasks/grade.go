@@ -14,6 +14,12 @@ type GradeResult struct {
 	Expected   []string `json:"expected,omitempty"`
 	Rationale  string   `json:"rationale,omitempty"`
 	Ambiguous  bool     `json:"ambiguous,omitempty"`
+	// MissingCritical: which expected.critical substrings the user's
+	// answer was missing. Populated only when GradedBy == "critical".
+	MissingCritical []string `json:"missing_critical,omitempty"`
+	// HitForbidden: which expected.forbidden substrings the user typed.
+	// Populated only when GradedBy == "forbidden".
+	HitForbidden []string `json:"hit_forbidden,omitempty"`
 }
 
 // GradeText handles text answers for cloze, conjugation, case, aspect,
@@ -43,6 +49,42 @@ func GradeText(kind string, expectedJSON []byte, userAnswer string) (GradeResult
 			Grade: 0, GradedBy: "exact", Correct: false, Similarity: 0,
 			Expected: exp.Answers,
 		}, nil
+	}
+
+	// Critical substrings: required-present hard gate. Bypassed by exact
+	// match above (a literal match by definition contains every critical
+	// piece). Sits before fuzzy so high-similarity-but-missing-preposition
+	// answers can't sneak through.
+	if len(exp.Critical) > 0 {
+		var missing []string
+		for _, c := range exp.Critical {
+			if !strings.Contains(ua, Normalize(c)) {
+				missing = append(missing, c)
+			}
+		}
+		if len(missing) > 0 {
+			return GradeResult{
+				Grade: 0, GradedBy: "critical", Correct: false, Similarity: 0,
+				Expected: exp.Answers, MissingCritical: missing,
+			}, nil
+		}
+	}
+
+	// Forbidden substrings: required-absent hard gate. Catches Russian
+	// calques, false friends, and obvious-wrong surface forms.
+	if len(exp.Forbidden) > 0 {
+		var hit []string
+		for _, f := range exp.Forbidden {
+			if strings.Contains(ua, Normalize(f)) {
+				hit = append(hit, f)
+			}
+		}
+		if len(hit) > 0 {
+			return GradeResult{
+				Grade: 0, GradedBy: "forbidden", Correct: false, Similarity: 0,
+				Expected: exp.Answers, HitForbidden: hit,
+			}, nil
+		}
 	}
 
 	bestSim := 0.0

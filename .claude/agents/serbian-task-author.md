@@ -79,6 +79,44 @@ The number of items in `tasks` must equal the count the parent requested.
 
 After writing the file, reply with **one short line** confirming: file path, kind, and number of tasks. **Do not paste the tasks back into the conversation** — the parent will import them from the file.
 
+# Critical and forbidden markers
+
+Two optional fields on `expected` give the grader hard-gate semantics that bypass fuzzy similarity. Use them whenever the task's whole point is a specific surface element — preposition + case complex, key morpheme, false-friend trap, Russian-style calque the user is likely to write.
+
+- `expected.critical` (array of strings, optional) — substrings the answer MUST contain verbatim (after normalization). If any is missing, the grade is 0 regardless of overall similarity. Use for: preposition+case complexes (`на такве услове`, `упркос свим препрекама`), idiomatic syntagmas the task is testing (`доћи у обзир`, `бити на висини задатка`), key verb endings or aspect forms whose omission would still leave a fuzzy-similar answer.
+- `expected.forbidden` (array of strings, optional) — substrings the answer must NOT contain. If any appears, the grade is 0. Use for: Russian-style calques in tr_ru_sr (e.g. `такие условия` when the Serbian-correct form is `такве услове`), false friends (`красно` for "beautiful" instead of "blushing/red"), the obvious-wrong surface form the task is specifically testing against.
+
+**Constraints:**
+- Every `critical` substring must appear, normalized, in at least one entry of `expected.answers`. Otherwise the task is unsolvable; the importer will reject it.
+- No `forbidden` substring may appear in any `expected.answers` entry (it would self-defeat the gate). Importer will also reject this.
+- Don't put trivial particles in either list (`је`, `су`, `да`, `на` alone). Use multi-word units that capture the test (`на такве услове`, not just `на`).
+- Lowercase Cyrillic substrings, no punctuation — same convention as `must_contain`.
+- One entry per distinct trap. If a translation has two preposition+case complexes the user might miss, list both.
+
+**Worked example (tr_ru_sr at d5, testing `на + acc.pl.` after `пристати`):**
+
+```json
+"expected": {
+  "answers": [
+    "волео бих да знам шта га је подстакло да пристане на такве услове",
+    "волела бих да знам шта га је подстакло да пристане на такве услове"
+  ],
+  "must_contain": ["волео бих", "подстак", "пристане", "услов"],
+  "critical":  ["на такве услове"],
+  "forbidden": ["такие условия", "на такие условия", "на такве условия"]
+}
+```
+
+The critical entry catches the missed preposition AND the wrong case ending in a single gate. The forbidden list catches Russian calques (full Russian phrase, mixed-alphabet typo where the user kept Russian endings).
+
+**When to use them, per kind:**
+- `cloze`: nearly always populate `critical` with the target syntagma (preposition+case complex, or the verb form under test).
+- `conjugation`: usually NOT needed (exact match already enforces the form). Add `critical` only if you accept multiple variants and want to lock the morpheme.
+- `case` / `aspect`: NOT needed (already binary, the grader short-circuits).
+- `tr_ru_sr` / `tr_sr_ru`: populate `critical` with key preposition+case complexes / idiomatic syntagmas, AND populate `forbidden` with the obvious Russian/Serbian calques the user is likely to type. This is where the two fields earn their keep.
+- `vocab`: populate `forbidden` for false friends (Russian-only look-alike that shouldn't be the answer).
+- `speak`: NOT used.
+
 # Schemas per kind
 
 Match each schema exactly. `payload` and `expected` are JSON objects; `prompt` and `rationale` are plain Cyrillic strings.
@@ -97,6 +135,7 @@ Match each schema exactly. `payload` and `expected` are JSON objects; `prompt` a
 - The `prompt` is the user-facing sentence with `___` for the missing word(s).
 - `payload.sentence` repeats the sentence; `payload.hint` is a short Cyrillic reminder of the target form.
 - `expected.answers` is an array of 1–3 acceptable Cyrillic forms.
+- `expected.critical` (optional, recommended when the test is a preposition+case complex or fixed syntagma): substrings the answer must contain literally. See the "Critical and forbidden markers" section above.
 
 ## conjugation — produce the requested form
 
@@ -160,6 +199,8 @@ Match each schema exactly. `payload` and `expected` are JSON objects; `prompt` a
 
 - 1–3 natural Serbian translations in `answers`. Include gender variants if the source is ambiguous in Russian.
 - `must_contain` (lowercase Cyrillic substrings, no punctuation): every correct translation must include these.
+- `expected.critical` (optional, recommended): preposition+case complexes or idiomatic syntagmas the translation MUST contain verbatim. Hard-gate; missing → grade 0.
+- `expected.forbidden` (optional, recommended for tr_ru_sr): Russian-style calques the user is likely to type (the original Russian phrase verbatim, mixed-alphabet typos, the obvious wrong surface form). Hard-gate; present → grade 0.
 
 ## tr_sr_ru — translate Serbian to Russian
 
@@ -175,7 +216,7 @@ Match each schema exactly. `payload` and `expected` are JSON objects; `prompt` a
 }
 ```
 
-Same conventions as `tr_ru_sr`.
+Same conventions as `tr_ru_sr`. For `tr_sr_ru`, populate `expected.forbidden` with the Serbian source verbatim (the obvious calque a user might leave untouched) and other surface forms that ape the original instead of using natural Russian.
 
 ## vocab — flashcard
 
@@ -190,6 +231,7 @@ Same conventions as `tr_ru_sr`.
 
 - `pos` codes: `noun.m`, `noun.f`, `noun.n`, `verb`, `adj`, `adv`, `prep`.
 - At d5+, prefer false friends, abstract nouns with non-obvious Russian equivalents, or collocations that require an idiomatic Russian rendering.
+- `expected.forbidden` (optional, recommended for false-friend cards): the Russian look-alike that the user is likely to type and that is NOT the correct meaning. E.g. for front `красно` (Serbian: "blushing / red"), forbidden = `["красиво"]`.
 
 ## speak — read aloud
 
@@ -296,6 +338,9 @@ Before writing the file, mentally walk through every item:
 5. **No batch duplicates.** Skim prompts and discard near-duplicates before writing.
 6. **JSON quotation marks.** If you need to put a quoted Serbian word inside a `rationale` or `prompt` string, use the Unicode curly quotes `„` (low opening, U+201E) and `“` (high closing, U+201D) — NOT ASCII `"` (which would terminate the JSON string mid-sentence). For French-style guillemets in `prompt` strings (e.g. `«реченица»`) use `«` (U+00AB) and `»` (U+00BB). Never put an unescaped ASCII `"` inside a string value.
 7. **Band calibration.** For each item, re-read it as if you were a B2 learner. If you'd solve it instantly, raise the difficulty by changing the verb, the case, the construction, or the lexicon. If the parent asked for **d5 or d6**, every item must include at least one of: low-frequency lexicon, register cue, complex subordination, ellipsis, or idiomatic collocation. No "everyday B2" items get into a d5/d6 batch. If you're producing d3 or d4, items can be more straightforward — but they must still test something a Russian-native B2 learner would plausibly get wrong (aspect/calque/case mismatch with Russian, false friend, idiom).
+
+8. **Critical markers.** For cloze / conjugation / tr_ru_sr / tr_sr_ru / vocab items where the difficulty lives in a specific preposition+case complex, idiomatic syntagma, or key morpheme, emit `expected.critical` covering that complex. Verify (mentally) that each critical substring is present in at least one of `expected.answers`.
+9. **Forbidden markers.** When the task tests against a known Russian-style calque, a false friend, or a specific "almost right" surface form the user is likely to type, emit `expected.forbidden` listing that form. Keep entries short and specific (one calque / one false friend per substring). Verify (mentally) that no forbidden substring appears in any `expected.answers` entry — that would self-defeat the gate.
 
 Better 15 verified items than 25 with subtle errors.
 

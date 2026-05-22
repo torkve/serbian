@@ -162,30 +162,98 @@ function renderSpeak(task, ctx) {
   );
 }
 
+// highlightSubstrings renders `text` as a mix of plain text nodes and
+// <mark class={cls}> elements wrapping every case-insensitive occurrence of
+// any string in `list`. Empty list or no matches => returns a single text
+// node. Greedy left-to-right; overlapping needles favour the first match.
+function highlightSubstrings(text, list, cls) {
+  if (!text) return [document.createTextNode('')];
+  if (!list || !list.length) return [document.createTextNode(String(text))];
+  const haystack = String(text);
+  const lowerHay = haystack.toLowerCase();
+  // Collect [start, end) ranges in source-string offsets.
+  const ranges = [];
+  for (const needle of list) {
+    if (!needle) continue;
+    const n = String(needle).toLowerCase();
+    if (!n) continue;
+    let from = 0;
+    while (true) {
+      const i = lowerHay.indexOf(n, from);
+      if (i < 0) break;
+      ranges.push([i, i + n.length]);
+      from = i + n.length;
+    }
+  }
+  if (!ranges.length) return [document.createTextNode(haystack)];
+  // Sort + merge overlapping ranges.
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [ranges[0]];
+  for (let i = 1; i < ranges.length; i++) {
+    const last = merged[merged.length - 1];
+    if (ranges[i][0] <= last[1]) {
+      last[1] = Math.max(last[1], ranges[i][1]);
+    } else {
+      merged.push(ranges[i]);
+    }
+  }
+  // Emit alternating plain / marked nodes.
+  const out = [];
+  let cursor = 0;
+  for (const [s, e] of merged) {
+    if (s > cursor) out.push(document.createTextNode(haystack.slice(cursor, s)));
+    out.push(h('mark', { class: cls }, haystack.slice(s, e)));
+    cursor = e;
+  }
+  if (cursor < haystack.length) out.push(document.createTextNode(haystack.slice(cursor)));
+  return out;
+}
+
 function renderVerdict(res, userAnswer, task) {
   const cls = 'verdict ' + (res.correct ? 'ok' : 'bad');
   const head = res.correct
     ? (res.grade === 5 ? 'Тачно!' : 'Добро.')
     : (res.grade === 0 ? 'Нетачно.' : 'Скоро.');
+  const missing = Array.isArray(res.missing_critical) ? res.missing_critical : [];
+  const hitForbidden = Array.isArray(res.hit_forbidden) ? res.hit_forbidden : [];
   // For speak tasks the user's answer is whatever Whisper transcribed; the
   // server returns that as feedback ("Транскрипт: …"). For everything else
   // we already hold the typed/selected answer in session state.
   let mine = null;
   if (task && task.kind === 'speak') {
     if (res.feedback) {
-      mine = h('div', { class: 'your-answer' }, h('strong', null, 'Ваш изговор: '), res.feedback.replace(/^Транскрипт:\s*/, ''));
+      const transcript = res.feedback.replace(/^Транскрипт:\s*/, '');
+      mine = h('div', { class: 'your-answer' },
+        h('strong', null, 'Ваш изговор: '),
+        ...highlightSubstrings(transcript, hitForbidden, 'bad'));
     }
   } else if (userAnswer && String(userAnswer).trim() !== '') {
-    mine = h('div', { class: 'your-answer' }, h('strong', null, 'Ваш одговор: '), userAnswer);
+    mine = h('div', { class: 'your-answer' },
+      h('strong', null, 'Ваш одговор: '),
+      ...highlightSubstrings(userAnswer, hitForbidden, 'bad'));
   }
   const expected = res.expected && res.expected.length
-    ? h('div', null, h('strong', null, 'Очекивано: '), res.expected.join(' / '))
+    ? h('div', null,
+        h('strong', null, 'Очекивано: '),
+        ...highlightSubstrings(res.expected.join(' / '), missing, 'ok'))
+    : null;
+  const missingRow = missing.length
+    ? h('div', { class: 'missing-critical' },
+        h('strong', null, 'Недостаје обавезни део: '),
+        missing.map((s) => `«${s}»`).join(' / '))
+    : null;
+  const forbiddenRow = hitForbidden.length
+    ? h('div', { class: 'hit-forbidden' },
+        h('strong', null, 'Не сме садржати: '),
+        hitForbidden.map((s) => `«${s}»`).join(' / '))
     : null;
   const rationale = res.rationale
     ? h('div', { class: 'rationale' }, h('strong', null, 'Објашњење: '), res.rationale)
     : null;
-  const sim = typeof res.similarity === 'number' && res.graded_by !== 'exact'
+  const sim = typeof res.similarity === 'number' && res.graded_by !== 'exact' && res.graded_by !== 'critical' && res.graded_by !== 'forbidden'
     ? h('div', { class: 'sim' }, `Сличност: ${(res.similarity * 100).toFixed(0)}%`)
     : null;
-  return h('div', { class: cls }, h('div', { class: 'verdict-head' }, head), mine, expected, sim, rationale);
+  return h('div', { class: cls },
+    h('div', { class: 'verdict-head' }, head),
+    mine, expected, missingRow, forbiddenRow, sim, rationale);
 }

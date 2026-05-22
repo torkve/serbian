@@ -19,14 +19,14 @@ ifeq ($(WITH_NGINX),1)
 COMPOSE_FILES += -f docker-compose.nginx.yml
 endif
 
-.PHONY: all build run backup pregen vapid fmt vet test tidy clean \
+.PHONY: all build run backup pregen vapid annotate fmt vet test tidy clean \
         docker-build docker-up docker-down docker-restart docker-logs \
         docker-ps docker-shell docker-clean docker-import whisper-model \
         nginx-cert
 
 all: build
 
-build: bin/serbian bin/pregen bin/vapid
+build: bin/serbian bin/pregen bin/vapid bin/annotate
 
 bin/serbian: $(shell find cmd/serbian internal web migrations prompts -type f 2>/dev/null)
 	@mkdir -p bin
@@ -39,6 +39,10 @@ bin/pregen: $(shell find cmd/pregen internal prompts -type f 2>/dev/null)
 bin/vapid: $(shell find cmd/vapid -type f 2>/dev/null)
 	@mkdir -p bin
 	$(GO_BIN) build -o bin/vapid ./cmd/vapid
+
+bin/annotate: $(shell find cmd/annotate internal -type f 2>/dev/null)
+	@mkdir -p bin
+	$(GO_BIN) build -o bin/annotate ./cmd/annotate
 
 run: bin/serbian
 	./bin/serbian -addr :$(PORT)

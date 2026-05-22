@@ -203,6 +203,52 @@ func validate(items []llm.GeneratedTask, kind string) ([]llm.GeneratedTask, []re
 			bad = append(bad, rejection{it, "expected.answers is empty"})
 			continue
 		}
+		// Sanity-check critical / forbidden against the reference answers.
+		// A critical substring that doesn't appear in any answer would make
+		// the task unsolvable; a forbidden substring that does appear in an
+		// answer would make the task self-defeating. Catch both at import.
+		var critFail string
+		for _, c := range exp.Critical {
+			cn := tasks.Normalize(c)
+			if cn == "" {
+				continue
+			}
+			found := false
+			for _, a := range exp.Answers {
+				if strings.Contains(tasks.Normalize(a), cn) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				critFail = c
+				break
+			}
+		}
+		if critFail != "" {
+			bad = append(bad, rejection{it, "critical substring not in any answer: " + critFail})
+			continue
+		}
+		var forbidFail string
+		for _, f := range exp.Forbidden {
+			fn := tasks.Normalize(f)
+			if fn == "" {
+				continue
+			}
+			for _, a := range exp.Answers {
+				if strings.Contains(tasks.Normalize(a), fn) {
+					forbidFail = f
+					break
+				}
+			}
+			if forbidFail != "" {
+				break
+			}
+		}
+		if forbidFail != "" {
+			bad = append(bad, rejection{it, "forbidden substring overlaps an answer: " + forbidFail})
+			continue
+		}
 		ok = append(ok, it)
 	}
 	return ok, bad

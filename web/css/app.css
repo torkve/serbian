@@ -151,6 +151,10 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 
 .verdict-head { font-weight: 600; font-size: 1.05rem; }
 .verdict .rationale { color: var(--fg); font-size: 0.95rem; }
 .verdict .your-answer { color: var(--fg); font-size: 0.95rem; }
+.verdict .missing-critical { color: var(--bad-fg); font-size: 0.95rem; }
+.verdict .hit-forbidden { color: var(--bad-fg); font-size: 0.95rem; }
+.verdict mark.ok { background: var(--ok-bg); color: var(--ok-fg); border-radius: 3px; padding: 0 0.15em; }
+.verdict mark.bad { background: var(--bad-bg); color: var(--bad-fg); border-radius: 3px; padding: 0 0.15em; }
 .verdict .sim { font-size: 0.85rem; opacity: 0.8; }
 
 .speak .target {

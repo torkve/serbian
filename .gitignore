@@ -1,6 +1,7 @@
 /data/
 /bin/
 /models/
+/.local/
 *.db
 *.db-journal
 *.db-wal
