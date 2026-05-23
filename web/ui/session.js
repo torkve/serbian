@@ -25,7 +25,11 @@ export function session(ctx) {
     diffPill,
   );
 
-  const promptEl = h('div', { class: 'prompt' }, task.prompt);
+  // For `speak`, renderSpeak() already shows the sentence as its .target —
+  // skip the generic prompt element to avoid the duplicate.
+  const promptEl = task.kind === 'speak'
+    ? null
+    : h('div', { class: 'prompt' }, task.prompt);
 
   const hint = task.payload && task.payload.hint
     ? h('div', { class: 'hint' }, `Подсетник: ${task.payload.hint}`)
