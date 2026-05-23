@@ -94,16 +94,20 @@ function renderText(task, ctx, placeholder) {
 }
 
 function renderTextarea(task, ctx) {
-  return h('textarea', {
+  const el = h('textarea', {
     rows: '3',
     autocapitalize: 'sentences',
     spellcheck: 'false',
     lang: task.kind === 'tr_sr_ru' ? 'ru' : 'sr-Cyrl-RS',
     placeholder: task.kind === 'tr_sr_ru' ? 'Превод на руски…' : 'Превод на српски (ћирилица)…',
     disabled: ctx.checked,
-    value: ctx.answer || '',
     onInput: (e) => ctx.onAnswer(e.target.value),
   });
+  // <textarea> has no `value` attribute — its current text is the element's
+  // child text node. Set the DOM property directly so the typed answer
+  // remains visible inside the textarea after it's disabled on check.
+  el.value = ctx.answer || '';
+  return el;
 }
 
 function renderChoices(task, ctx) {
@@ -220,21 +224,15 @@ function renderVerdict(res, userAnswer, task) {
     : (res.grade === 0 ? 'Нетачно.' : 'Скоро.');
   const missing = Array.isArray(res.missing_critical) ? res.missing_critical : [];
   const hitForbidden = Array.isArray(res.hit_forbidden) ? res.hit_forbidden : [];
-  // For speak tasks the user's answer is whatever Whisper transcribed; the
-  // server returns that as feedback ("Транскрипт: …"). For everything else
-  // we already hold the typed/selected answer in session state.
+  // Only `speak` surfaces the user's answer here — the Whisper transcript
+  // isn't shown anywhere else. For text-input kinds the answer remains
+  // visible inside the disabled input/textarea above the verdict.
   let mine = null;
-  if (task && task.kind === 'speak') {
-    if (res.feedback) {
-      const transcript = res.feedback.replace(/^Транскрипт:\s*/, '');
-      mine = h('div', { class: 'your-answer' },
-        h('strong', null, 'Ваш изговор: '),
-        ...highlightSubstrings(transcript, hitForbidden, 'bad'));
-    }
-  } else if (userAnswer && String(userAnswer).trim() !== '') {
+  if (task && task.kind === 'speak' && res.feedback) {
+    const transcript = res.feedback.replace(/^Транскрипт:\s*/, '');
     mine = h('div', { class: 'your-answer' },
-      h('strong', null, 'Ваш одговор: '),
-      ...highlightSubstrings(userAnswer, hitForbidden, 'bad'));
+      h('strong', null, 'Ваш изговор: '),
+      ...highlightSubstrings(transcript, hitForbidden, 'bad'));
   }
   const expected = res.expected && res.expected.length
     ? h('div', null,
